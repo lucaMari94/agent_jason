@@ -1,0 +1,11 @@
+MAS cnp {
+
+    infrastructure: Centralised
+
+    agents:
+		
+        auctioneer;
+
+        bidder #2;
+
+}
