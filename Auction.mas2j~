@@ -1,21 +1,3 @@
-/* Jason Project
-
-This project shows how the Contract Net Protocol (CNP)
-can be implemented with Jason. It exemplifies only the
-communication no actions are actually performed.
-
-The agent c plays the initiator (who need a service)
-and the agents p* play participant (who provide a service).
-The agents register their services/role in the DF (Directory Facilitator)
-
-For more information about the CNP see
-http://www.fipa.org/specs/fipa00029/
-
-This example also ilustrates the use of the mind
-inspector.
-
-*/
-
 MAS cnp {
 
     infrastructure: Centralised
@@ -24,6 +6,6 @@ MAS cnp {
 		
         auctioneer;
 
-        bidder #4;
+        bidder #2;
 
 }

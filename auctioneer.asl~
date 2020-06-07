@@ -1,21 +1,19 @@
-// Agent auctioneer in project ContractNetProtocol.mas2j
-/* Initial beliefs and rules */
-// stop(N) :- .random(R) & N = (10*R) & N > 5 & .print(N).
-stop_with_one_propose(CNPId):- one_proposals_received(CNPId).
+// Agent auctioneer in project Auction.mas2j
 
-stop_with_no_propose(CNPId):- no_proposals_received(CNPId).
+/* Initial beliefs and rules */
+
+stop_one_proposal(CNPId)
+  :- nb_participants(CNPId,NP) & NP = 1.
+
+stop_no_proposal(CNPId)
+  :- nb_participants(CNPId,NP) & NP = 0.
 
 all_proposals_received(CNPId)
   :- nb_participants(CNPId,NP) &                 // number of participants
      .count(propose(CNPId,_)[source(_)], NO) &   // number of proposes received
      .count(refuse(CNPId)[source(_)], NR) &      // number of refusals received
      NP = NO + NR.
-
-one_proposals_received(CNPId)
-  :- nb_participants(CNPId,NP) & NP = 1.
-
-no_proposals_received(CNPId)
-  :- nb_participants(CNPId,NP) & NP = 0.
+  
   
 /* Initial goals */
 
@@ -23,7 +21,6 @@ no_proposals_received(CNPId)
 
 !startAuction(1, auction(jewel), 100).
 
-// !startAuction(2, auction(a), 100).
 
 /* Plans */
 
@@ -32,6 +29,7 @@ no_proposals_received(CNPId)
 	: true 
 	<- .df_register(auctioneer).
 
+	
 // start the CNP // case 0
 +!startAuction(CNPId, Auction, InitialPrice)
  	: true
@@ -43,26 +41,64 @@ no_proposals_received(CNPId)
 	
 	.wait(2000); // wait bidders (2 seconds)
 	
-	+state(CNPId, cfp);  // annotation: state = call for proposal
+	+state(CNPId, cfp);  // mental annotation: state = call for proposal
 	
 	// get bidders from DF
 	.df_search("bidders", BIDDERS_LIST);
     .print("Sending CFP to ", BIDDERS_LIST);
 	.print("-------------------------------------\n\n");
-    +nb_participants(CNPId, .length(BIDDERS_LIST)); // annotation: bidder's number
+    
+	+nb_participants(CNPId, .length(BIDDERS_LIST)); // mental annotation: bidder's number
 	
 	// send CFM message to bidderList with initialPrice
 	.send(BIDDERS_LIST, tell, cfp(CNPId, Auction, InitialPrice));
-	
-	// .wait(all_proposals_received(CNPId), 4000, _); // wait answers (4 seconds)
-	
+		
 	!contract(CNPId, Auction). // new goal 
-	
-// @lc2 +!contract(_).
 
-/*-!contract(CNPId) // refuse
-   <- .print("CNP ",CNPId," has failed!").*/
-  
+	
++!contract(CNPId, Auction)
+	: (state(CNPId,cfp) | state(CNPId, contract)) 
+		& not stop_one_proposal(CNPId) 
+		& not stop_no_proposal(CNPId) 
+	<-
+	-state(CNPId, cfp);
+	
+	+state(CNPId, contract); // mental annotation, phase passages
+	
+	.wait(all_proposals_received(CNPId), 2000, _);
+	
+	.findall(offer(Offer,A), propose(CNPId, Offer)[source(A)], Offers_list);
+	.print("Offers are ", Offers_list);
+	 
+	// if the offers_list is not empty
+	Offers_list \== [];
+    .max(Offers_list, offer(Max_value, Agent));
+	
+	.print("AUCTIONEER: INFORM MAX OFFER VALUE: ", Max_value, " of ", Agent);
+	.print("-------------------------------------\n");
+	
+	.df_search("bidders", BIDDERS_LIST);
+	.print(BIDDERS_LIST);
+    +nb_participants(CNPId, .length(BIDDERS_LIST)); // annotation: bidder's number
+	
+	// send message with max value for new proposal
+	.send(BIDDERS_LIST, tell, informMaxValue(CNPId, Auction, Max_value, .length(BIDDERS_LIST)));
+	
+	!contract(CNPId, Auction).
+
++!contract(CNPId, Auction)
+	: state(CNPId, contract) & stop_one_proposal(CNPId)
+	<- .print(one_propose).
+	
++!contract(CNPId, Auction)
+	: state(CNPId, contract) & stop_no_proposal(CNPId)
+	<- .print(no_propose).
+	
+
+	
+	
+	
+/*  
 +!contract(CNPId, Auction)
 	: (state(CNPId,cfp) | state(CNPId, contract)) 
 		& not stop_with_one_propose(CNPId) 
@@ -72,7 +108,7 @@ no_proposals_received(CNPId)
 	-state(CNPId, cfp);
 	+state(CNPId, contract); // phase passages
 	
-	.wait(all_proposals_received(CNPId), 2000, _); // wait answers (4 seconds)
+	.wait(all_proposals_received(CNPId), 2000, _);
 	
 	.print("-------------------------------------");
 	
@@ -83,73 +119,71 @@ no_proposals_received(CNPId)
 	
 	// if the offers are not empty
 	OFFERS \== [];
+	
     .max(OFFERS, offer(Value, Agent));
 	
 	.print("AUCTIONEER: INFORM MAX OFFER VALUE: ", Value, " of ", Agent);
 	.print("-------------------------------------\n");
 	
-	// send message with max value for new proposal
 	-nb_participants(CNPId, .length(BIDDERS_LIST));
 	
 	.df_search("bidders", BIDDERS_LIST);
-	// annotation: bidder's number
+	
     +nb_participants(CNPId, .length(BIDDERS_LIST)); // annotation: bidder's number
+	
+	// send message with max value for new proposal
 	.send(BIDDERS_LIST, tell, informMaxValue(CNPId, Auction, Value, .length(BIDDERS_LIST)));
 	
 	!contract(CNPId, Auction).
 
+	
 +!contract(CNPId, Auction)
 	: stop_with_no_propose(CNPId)
 	<-
-	.df_search("bidders", BIDDERS_LIST);
+	
 	.print("-------------------------------------");
 	.print("AUCTION ENDED WITHOUT SALE");
 	.print("-------------------------------------");
 	
+	-state(CNPId, contract);
 	-+state(CNPId, finished);
 	
 	true. // finished
+	
 	
 +!contract(CNPId, Auction) // there is ONE PROPOSE --> winnwe --> accept proposal
 	: stop_with_one_propose(CNPId)
 	<-
 	.df_search("bidders", BIDDERS_LIST);
 	
+	.print("-------------------------------------");
 	.print("SEND ACCEPT PROPOSAL TO: ", BIDDERS_LIST);
+	.print("-------------------------------------\n");
 	
 	.send(BIDDERS_LIST,tell,accept_proposal(CNPId));
-	 
-    -+state(CNPId, finished);
+	-state(CNPId, contract).
 	
-	true. // finished
-
+	
 -!contract(CNPId, Auction)
 	: state(CNPId, finished)
 	<- 
+	-state(CNPId, finished);
+	-+state(CNPId, end);
 	.print("Finished").
-
-+!announce_result(_,[],_).
-
-/*// announce to the winner ACCEPT PROPOSAL
-+!announce_result(CNPId,[offer(_,WinnerAgent)|T],WinnerAgent)
-   <- 
-   .print("X");
-   .send(WinnerAgent,tell,accept_proposal(CNPId));
-   !announce_result(CNPId,T,Agent).*/
-	  
-/*// announce to others REJECT PROPOSAL
-+!announce_result(CNPId,[offer(_,LAg)|T],WinnerAgent)
-   <- 
-   .print("Y");
-   .send(LAg,tell,reject_proposal(CNPId));
-   !announce_result(CNPId,T,Winner).*/
-
-/*
+	
+	
++informPayment(CNPId, Auction, Offer)[source(B)]
+	: true
+	<-
+	.df_search("bidders", BIDDERS_LIST);
+	
 	.print("-------------------------------------");
 	.print("Auction ended");
 	.print("Sale occurred");
 	.print("ASSET SOLD: ", Auction);
-	.print("TO BIDDER:", WinnerAgent);
-	.print("FOR: ", Value, " $");
+	.print("TO BIDDER:", BIDDERS_LIST);
+	.print("FOR: ", Offer, "$");
 	.print("-------------------------------------");
-*/
+	-+state(CNPId, finished).
+	*/
+

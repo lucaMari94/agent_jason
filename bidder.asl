@@ -1,15 +1,12 @@
 // Agent bidder in project Auction.mas2j
 
-// random(Budget) :- .random(R) & Budget = (100*R)+100.
+/* Initial beliefs and rules */
 
 init(Budget) :- Budget = 130.
 
 price(InitialPrice, Offer) :- .random(R) & Offer = (20*R)+InitialPrice.
 
-too_offer(B) :- init(B) & proposeORrefuse(A, CNPId, Auction, O) & O > B.
-
-
-/* Initial beliefs and rules */
+too_offer(B) :- init(B) & try_to_offer(Offer) & Offer > B.
 
 
 /* Initial goals */
@@ -31,28 +28,32 @@ too_offer(B) :- init(B) & proposeORrefuse(A, CNPId, Auction, O) & O > B.
 +cfp(CNPId, Auction, InitialPrice)[source(A)]
 	: provider(A,"auctioneer") & price(InitialPrice, Offer)
 	<-
-	+proposeORrefuse(A, CNPId, Auction, Offer).
+	+try_to_offer(Offer);
+	!proposeORrefuse(A, CNPId, Auction, Offer).
 
 	   
-+informMaxValue(CNPId, Auction, Value, BiddersNumber)[source(A)]
-	: provider(A,"auctioneer") & init(Budget) & price(Value, Offer) & BiddersNumber > 1
++informMaxValue(CNPId, Auction, Max_value, BiddersNumber)[source(A)]
+	: provider(A,"auctioneer") & init(Budget) & price(Max_value, Offer) & BiddersNumber > 1
 	<-
-	+proposeORrefuse(A, CNPId, Auction, Offer).
+	+try_to_offer(Offer);
+	!proposeORrefuse(A, CNPId, Auction, Offer).
 	
 	
-+proposeORrefuse(A, CNPId, Auction, Offer) // propose if Offer < Budget
-	: init(Budget) & proposeORrefuse(A, CNPId, Auction, Offer) & not too_offer(Budget)
++!proposeORrefuse(A, CNPId, Auction, Offer) // propose if Offer < Budget
+	: init(Budget) & try_to_offer(Offer) & not too_offer(Budget)
 	<- 
-	+proposal(CNPId, Auction, Offer);
+	+proposal(CNPId, Auction, Offer); // mental annotation
 	
 	.print("NEW PROPOSE: offer ", Offer, " < ", Budget, "\n");
 	
 	.send(A, tell, propose(CNPId, Offer)).
 
 	
-+proposeORrefuse(A, CNPId, Auction, Offer) // refuse if Offer > Budget
-	: init(Budget) & proposeORrefuse(A, CNPId, Auction, Offer) &  too_offer(Budget)
++!proposeORrefuse(A, CNPId, Auction, Offer) // refuse if Offer > Budget
+	: init(Budget) & try_to_offer(Offer) & too_offer(Budget)
 	<- 
+	+refuse(CNPId, Auction, Offer); // mental annotation
+	
 	.print("TRY TO PROPOSE: offer ", Offer, " < ", Budget);
 	.print("BUT REFUSE BECAUSE 'BUDGET NOT SUFFICIENT': ", Offer, " > ", Budget, "\n");
 	
@@ -64,6 +65,8 @@ too_offer(B) :- init(B) & proposeORrefuse(A, CNPId, Auction, O) & O > B.
 +accept_proposal(CNPId)[source(A)]
    : provider(A,"auctioneer") & proposal(CNPId, Auction, Offer)
    <- 
+   +accept(CNPId, Auction, Offer); // mental annotation
+   
    .print("-------------------------------------");
    .print("PAYMENT: ", Offer, "$ for ", Auction, " - CNPId ", CNPId);
    .print("-------------------------------------\n");
